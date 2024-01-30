@@ -5,13 +5,13 @@ class Backtester:
         self.data = data
         self.positions = pd.Series(index=self.data.index, dtype=int)
         self.portfolio = pd.DataFrame(index=self.data.index)
-        self.start_balance = 100000  # Initial balance in USD
+        self.start_balance = 100000  #balance
         self.balance = self.start_balance
-        self.unit_size = 100  # Number of shares per trade
+        self.unit_size = 100  # nunber of units
 
     def execute_strategy(self):
         for i in range(1, len(self.data)):
-            # Implement your trading strategy here
+            # stratagy
             if self.data['Close'][i] > self.data['Close'][i - 1]:
                 self.buy(i)
             elif self.data['Close'][i] < self.data['Close'][i - 1]:
