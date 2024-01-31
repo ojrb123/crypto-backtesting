@@ -22,10 +22,14 @@ class TestStrategy(bt.Strategy):
 
         # Add Parabolic SAR indicator
         self.sar = bt.indicators.ParabolicSAR(self.datas[0])
+        self.hma = bt.indicators.HullMovingAverage(self.datas[0])
 
         # Initialize prev_sar and buy_price
         self.prev_sar = None
+        self.prev_hma = None
         self.buy_price = None
+        self.success = 0
+        self.trials = 1
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -59,21 +63,39 @@ class TestStrategy(bt.Strategy):
         self.log('Close, %.2f' % self.dataclose[0])
 
         # Check if we are in a position
+        probability = (self.success / self.trials) * 100
+        print(f'Probability of achieving 5% price move: {probability:.2f}%')
+        
+
         if self.position:
-            if self.dataclose[0] <= self.buy_price * 0.98:
+
+            percent_chng = (self.dataclose[0] - self.buy_price) / self.buy_price * 100
+           
+
+            if percent_chng >= 3:
                 self.log('SELL CREATE (Price dropped below 98%% of buy price), %.2f' % self.dataclose[0])
                 self.order = self.close()
-            
-            elif self.dataclose[0] >= self.buy_price * 1.05:
-                self.log('SELL CREATE (Price increased aboe 15%% of buy price), %.2f' % self.dataclose[0])
+                self.success += 1
+                self.trials += 1
+
+            if percent_chng <= -3:
+                self.log('SELL CREATE (Price dropped below 98%% of buy price), %.2f' % self.dataclose[0])
                 self.order = self.close()
+                self.trials += 1
+            
+            # elif self.dataclose[0] >= self.buy_price * 1.05:
+            #     self.log('SELL CREATE (Price increased aboe 15%% of buy price), %.2f' % self.dataclose[0])
+            #     self.order = self.close()
 
             return
 
         # Update the price history
-        if self.dataclose[0] > self.sar[0] and not self.position:
+        if self.dataclose[0] > self.sar[0] and self.dataclose[0] > self.hma[0] and not self.position:
             self.log('BUY CREATE, %.2f' % self.dataclose[0])
             self.order = self.buy()
+            
+
+            
 
 
 if __name__ == '__main__':
@@ -83,7 +105,7 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    datapath = 'data/LINK-USDT15-SMALL.csv'
+    datapath = 'data/LINK-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
