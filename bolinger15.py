@@ -20,12 +20,15 @@ class TestStrategy(bt.Strategy):
         self.dataclose = self.datas[0].close
         self.price_history = []
 
-        # Add Parabolic SAR indicator
-        self.sar = bt.indicators.ParabolicSAR(self.datas[0])
+        # Add Bollinger Bands indicator
+        self.bollinger = bt.indicators.BollingerBands(self.datas[0], period=21, devfactor=2)
 
-        # Initialize prev_sar and buy_price
-        self.prev_sar = None
+        # Initialize buy_price
         self.buy_price = None
+
+        # Set parameters for trailing stop and take profit
+        self.trailing_stop_percent = 4
+        self.take_profit_percent = 15
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -41,6 +44,19 @@ class TestStrategy(bt.Strategy):
                     (order.executed.price,
                      order.executed.value,
                      order.executed.comm))
+
+                # Set trailing stop and take profit for the buy order
+                self.sell(
+                    exectype=bt.Order.StopTrail,
+                    trailpercent=self.trailing_stop_percent,
+                    parent=order
+                )
+
+                self.sell(
+                    exectype=bt.Order.Limit,
+                    price=order.executed.price * (1 + self.take_profit_percent / 100),
+                    parent=order
+                )
 
             elif order.issell():
                 self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
@@ -60,40 +76,25 @@ class TestStrategy(bt.Strategy):
 
         # Check if we are in a position
         if self.position:
-            # Check if SAR is above Close and above previous SAR for selling
-            if self.sar[0] > self.dataclose[0] and self.sar[0] > self.prev_sar:
-                self.log('SELL CREATE (SAR above Close and above previous SAR), %.2f' % self.dataclose[0])
-                self.order = self.close()
-            elif self.dataclose[0] <= self.buy_price * 0.9:
-                self.log('SELL CREATE (Price dropped below 90%% of buy price), %.2f' % self.dataclose[0])
+            # Check if the close price is below the lower Bollinger Band for selling
+            if self.dataclose[0] < self.bollinger.lines.bot:
+                self.log('SELL CREATE (Close below Bollinger Bands), %.2f' % self.dataclose[0])
                 self.order = self.close()
 
             return
 
+        # Check if close is greater than or equal to the lower Bollinger Band
+        if self.dataclose[0] >= self.bollinger.lines.bot:
+            # Check if the previous close is less than the lower Bollinger Band
+            if self.dataclose[-1] < self.bollinger.lines.bot[-1]:
+                self.log('BUY CREATE, %.2f' % self.dataclose[0])
+                self.order = self.buy(size=40)
+
         # Update the price history
         self.price_history.append(self.dataclose[0])
 
-        # Check if we have enough data for the past 14 days
-        if len(self.price_history) == 14:
-            # Calculate the percentage drop over the past 14 days
-            max_price = max(self.price_history)
-            min_price = min(self.price_history)
-            percentage_drop = ((max_price - min_price) / max_price) * 100
-
-            # Check if there has been a 30% drop
-            if percentage_drop >= 5:
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-                self.order = self.buy(size = 40)
-
-            # Check if SAR is below Close after a sell
-            elif self.prev_sar is not None and self.sar[0] < self.dataclose[0] and self.prev_sar > self.dataclose[0]:
-                self.log('BUY CREATE (SAR below Close after a sell), %.2f' % self.dataclose[0])
-                self.order = self.buy()
-
-            # Update the previous SAR value
-            self.prev_sar = self.sar[0]
-
-            # Remove the oldest price to keep the history size fixed
+        # Remove the oldest price to keep the history size fixed
+        if len(self.price_history) > 21:
             self.price_history.pop(0)
 
 
@@ -104,26 +105,26 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    datapath = 'data/LTC-USDT60.csv'
+    datapath = 'data/LTC-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=datapath,
-        fromdate=datetime.datetime(2022, 1, 13),
+        fromdate=datetime.datetime(2023, 10, 13),
         todate=datetime.datetime(2024, 1, 31),
-        open = 1,
-        high = 2,
-        low = 3,
-        close = 4,
-        volume = -1,
-        openinterest = -1,
+        open=1,
+        high=2,
+        low=3,
+        close=4,
+        volume=-1,
+        openinterest=-1,
         dtformat='%Y-%m-%dT%H:%M:%SZ',  # Specify the correct date format
         datetime=0,  # Index of the column containing datetime information
     )
 
     cerebro.adddata(data)
 
-    cerebro.addsizer(bt.sizers.FixedSize, stake=100)
+    cerebro.addsizer(bt.sizers.FixedSize, stake=40)
 
     cerebro.broker.setcash(100000)
 
@@ -135,6 +136,6 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
 
-    cerebro.plot(volume = False)
+    cerebro.plot(volume=False)
 
     # Print out the final result

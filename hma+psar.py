@@ -60,41 +60,20 @@ class TestStrategy(bt.Strategy):
 
         # Check if we are in a position
         if self.position:
-            # Check if SAR is above Close and above previous SAR for selling
-            if self.sar[0] > self.dataclose[0] and self.sar[0] > self.prev_sar:
-                self.log('SELL CREATE (SAR above Close and above previous SAR), %.2f' % self.dataclose[0])
+            if self.dataclose[0] <= self.buy_price * 0.98:
+                self.log('SELL CREATE (Price dropped below 98%% of buy price), %.2f' % self.dataclose[0])
                 self.order = self.close()
-            elif self.dataclose[0] <= self.buy_price * 0.9:
-                self.log('SELL CREATE (Price dropped below 90%% of buy price), %.2f' % self.dataclose[0])
+            
+            elif self.dataclose[0] >= self.buy_price * 1.05:
+                self.log('SELL CREATE (Price increased aboe 15%% of buy price), %.2f' % self.dataclose[0])
                 self.order = self.close()
 
             return
 
         # Update the price history
-        self.price_history.append(self.dataclose[0])
-
-        # Check if we have enough data for the past 14 days
-        if len(self.price_history) == 14:
-            # Calculate the percentage drop over the past 14 days
-            max_price = max(self.price_history)
-            min_price = min(self.price_history)
-            percentage_drop = ((max_price - min_price) / max_price) * 100
-
-            # Check if there has been a 30% drop
-            if percentage_drop >= 5:
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-                self.order = self.buy(size = 40)
-
-            # Check if SAR is below Close after a sell
-            elif self.prev_sar is not None and self.sar[0] < self.dataclose[0] and self.prev_sar > self.dataclose[0]:
-                self.log('BUY CREATE (SAR below Close after a sell), %.2f' % self.dataclose[0])
-                self.order = self.buy()
-
-            # Update the previous SAR value
-            self.prev_sar = self.sar[0]
-
-            # Remove the oldest price to keep the history size fixed
-            self.price_history.pop(0)
+        if self.dataclose[0] > self.sar[0] and not self.position:
+            self.log('BUY CREATE, %.2f' % self.dataclose[0])
+            self.order = self.buy()
 
 
 if __name__ == '__main__':
@@ -104,12 +83,12 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    datapath = 'data/LTC-USDT60.csv'
+    datapath = 'data/LTC-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=datapath,
-        fromdate=datetime.datetime(2022, 1, 13),
+        fromdate=datetime.datetime(2023, 10, 2),
         todate=datetime.datetime(2024, 1, 31),
         open = 1,
         high = 2,
@@ -123,7 +102,7 @@ if __name__ == '__main__':
 
     cerebro.adddata(data)
 
-    cerebro.addsizer(bt.sizers.FixedSize, stake=100)
+    cerebro.addsizer(bt.sizers.FixedSize, stake=1)
 
     cerebro.broker.setcash(100000)
 
@@ -134,6 +113,8 @@ if __name__ == '__main__':
 
     # Run over everything
     cerebro.run()
+
+    print('Ending Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
     cerebro.plot(volume = False)
 
