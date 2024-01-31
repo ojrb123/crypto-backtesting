@@ -1,15 +1,17 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-import datetime  # For datetime objects
-import os.path  # To manage paths
-import sys  # To find out the script name (in argv[0])
+import sys
 
-# Import the backtrader platform
+print(sys.path)
+from datafeeds.TradingViewDataFeed import TradingViewCSVData
+import datetime
+import os.path
+
+
 import backtrader as bt
 
-
-# Create a Stratey
+# Create a Strategy
 class TestStrategy(bt.Strategy):
 
     def log(self, txt, dt=None):
@@ -20,10 +22,83 @@ class TestStrategy(bt.Strategy):
     def __init__(self):
         # Keep a reference to the "close" line in the data[0] dataseries
         self.dataclose = self.datas[0].close
+        self.price_history = []
+
+        # Add Parabolic SAR indicator
+        self.sar = bt.indicators.ParabolicSAR(self.datas[0])
+
+        # Initialize prev_sar and buy_price
+        self.prev_sar = None
+        self.buy_price = None
+
+    def notify_order(self, order):
+        if order.status in [order.Submitted, order.Accepted]:
+            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
+            return
+
+        # Check if an order has been completed
+        if order.status in [order.Completed]:
+            if order.isbuy():
+                self.buy_price = order.executed.price
+                self.log(
+                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
+                    (order.executed.price,
+                     order.executed.value,
+                     order.executed.comm))
+
+            elif order.issell():
+                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
+                         (order.executed.price,
+                          order.executed.value,
+                          order.executed.comm))
+
+            self.bar_executed = len(self)
+
+        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
+            self.log('Order Canceled/Margin/Rejected')
+
+        self.order = None
 
     def next(self):
-        # Simply log the closing price of the series from the reference
         self.log('Close, %.2f' % self.dataclose[0])
+
+        # Check if we are in a position
+        if self.position:
+            # Check if SAR is above Close and above previous SAR for selling
+            if self.sar[0] > self.dataclose[0] and self.sar[0] > self.prev_sar:
+                self.log('SELL CREATE (SAR above Close and above previous SAR), %.2f' % self.dataclose[0])
+                self.order = self.close()
+            elif self.dataclose[0] <= self.buy_price * 0.9:
+                self.log('SELL CREATE (Price dropped below 90%% of buy price), %.2f' % self.dataclose[0])
+                self.order = self.close()
+
+            return
+
+        # Update the price history
+        self.price_history.append(self.dataclose[0])
+
+        # Check if we have enough data for the past 14 days
+        if len(self.price_history) == 14:
+            # Calculate the percentage drop over the past 14 days
+            max_price = max(self.price_history)
+            min_price = min(self.price_history)
+            percentage_drop = ((max_price - min_price) / max_price) * 100
+
+            # Check if there has been a 30% drop
+            if percentage_drop >= 30:
+                self.log('BUY CREATE, %.2f' % self.dataclose[0])
+                self.order = self.buy(size = 4000)
+
+            # Check if SAR is below Close after a sell
+            elif self.prev_sar is not None and self.sar[0] < self.dataclose[0] and self.prev_sar > self.dataclose[0]:
+                self.log('BUY CREATE (SAR below Close after a sell), %.2f' % self.dataclose[0])
+                self.order = self.buy(size=self.broker.cash)
+
+            # Update the previous SAR value
+            self.prev_sar = self.sar[0]
+
+            # Remove the oldest price to keep the history size fixed
+            self.price_history.pop(0)
 
 
 if __name__ == '__main__':
@@ -33,26 +108,20 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    # Datas are in a subfolder of the samples. Need to find where the script is
-    # because it could have been called from anywhere
-    modpath = os.path.dirname(os.path.abspath(sys.argv[0]))
-    datapath = os.path.join(modpath, '../../datas/orcl-1995-2014.txt')
+    datapath = './data/LINK-USDT60.csv'
 
     # Create a Data Feed
-    data = bt.feeds.YahooFinanceCSVData(
+    data = TradingViewCSVData(
         dataname=datapath,
-        # Do not pass values before this date
-        fromdate=datetime.datetime(2000, 1, 1),
-        # Do not pass values before this date
-        todate=datetime.datetime(2000, 12, 31),
-        # Do not pass values after this date
         reverse=False)
 
-    # Add the Data Feed to Cerebro
     cerebro.adddata(data)
 
-    # Set our desired cash start
-    cerebro.broker.setcash(100000.0)
+    cerebro.addsizer(bt.sizers.FixedSize, stake=2)
+
+    cerebro.broker.setcash(100000)
+
+    cerebro.broker.setcommission(commission=0.001)
 
     # Print out the starting conditions
     print('Starting Portfolio Value: %.2f' % cerebro.broker.getvalue())
@@ -60,5 +129,6 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
 
+    cerebro.plot(volume=False, openinterest=False)
+
     # Print out the final result
-    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
