@@ -132,3 +132,4 @@ if __name__ == '__main__':
     cerebro.plot(volume=False, openinterest=False)
 
     # Print out the final result
+    print('Final Portfolio Value: %.2f' % cerebro.broker.getvalue())
