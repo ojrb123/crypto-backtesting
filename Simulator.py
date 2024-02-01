@@ -24,6 +24,8 @@ def run_simulation(df):
     with open(df, 'r') as csv_file:
         reader = csv.reader(csv_file)
         next(reader)
+
+        # reset simulator state
         HMA_holder = []
         PSAR_data = []
         PSAR_data = get_PSAR_Data(df)
@@ -36,30 +38,45 @@ def run_simulation(df):
         BUY_PRICE = 0.00
         WIN = 0
         
-        # prev_hma_state = True
+        
         prev_psar_state = True
+
+        # find the initial hma value
         initial_hma_val, last_close_for_hma = initial_hma(df, 11)
 
-        # Set prev_hma_state based on the comparison
-        prev_hma_state = last_close_for_hma > initial_hma_val[0]  # Assuming HMA function returns a list or similar
+        # set the first hma state boolean
+        prev_hma_state = last_close_for_hma > initial_hma_val[0] 
+
+        # skip the rows that were used in the initial hma
         for _ in range(8): 
             next(reader)
 
         for row in reader:
+
+            # add the close to the current hma window
             HMA_holder.append(row[4])
+
             WINDOW += 1
             CANDLES += 1
+
+            # we need 11 values in the hma holder array to calculate an hma value
             if WINDOW == 11:
+
+                # calculate current hma value
                 HMA_val = HMA(HMA_holder, WINDOW-2)
+
+                # check if close is above or below hma
                 curr_hma_state = HMA_position(HMA_val, row[4])
-                # print(f"curr hma state: {curr_hma_state}")
+
+                # check is close is above or below psar
                 curr_psar_state = PSAR_position(PSAR_holder[CANDLES-1], row[4])
     
                 WINDOW -= 1
+
+                # remove the oldest value from the hma array
                 HMA_holder = HMA_holder[1:]
 
-                if curr_hma_state != prev_hma_state and curr_hma_state == True:
-                    hma_cross = True
+                # if price is above psar and hma and we are not in a buy, buy
                 if curr_psar_state == True and curr_hma_state == True and BUY is False:
                     BUY = True
                     BUY_PRICE = float(row[4])
