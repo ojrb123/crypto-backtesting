@@ -8,8 +8,6 @@ import backtrader as bt
 # Create a Strategy
 class TestStrategy(bt.Strategy):
 
-    params = (('hma_period', 7), ('psar_af', 0.02), ('psar_afmax', 0.2), ('percent_target', 3))
-
     def log(self, txt, dt=None):
         ''' Logging function for this strategy'''
         dt = dt or self.datas[0].datetime.date(0)
@@ -22,9 +20,6 @@ class TestStrategy(bt.Strategy):
         self.order = None
         self.buyprice = None
         self.comm = None
-        self.hma = bt.indicators.HullMovingAverage(self.data.close, period=self.params.hma_period)
-        self.psar = bt.indicators.ParabolicSAR(af=self.params.psar_af, afmax=self.params.psar_afmax)
-        self.bs = bt.indicators.
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:

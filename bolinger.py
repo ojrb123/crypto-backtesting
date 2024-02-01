@@ -1,101 +1,55 @@
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
+import backtrader as bt
+
+
 import datetime
 import os.path
 import sys
 
-import backtrader as bt
-
-# Create a Strategy
-class TestStrategy(bt.Strategy):
-
-    def log(self, txt, dt=None):
-        ''' Logging function for this strategy'''
-        dt = dt or self.datas[0].datetime.date(0)
-        print('%s, %s' % (dt.isoformat(), txt))
+class HMA_PSAR_Strategy(bt.Strategy):
+    params = (('hma_period', 7), ('psar_af', 0.02), ('psar_afmax', 0.2), ('percent_target', 3))
 
     def __init__(self):
-        # Keep a reference to the "close" line in the data[0] dataseries
-        self.dataclose = self.datas[0].close
-        self.price_history = []
-
-        # Add Bollinger Bands indicator
-        self.bollinger = bt.indicators.BollingerBands(self.datas[0], period=21, devfactor=2)
-
-        # Initialize buy_price
-        self.buy_price = None
-
-        # Set parameters for trailing stop and take profit
-        self.trailing_stop_percent = 4
-        self.take_profit_percent = 15
-
-    def notify_order(self, order):
-        if order.status in [order.Submitted, order.Accepted]:
-            # Buy/Sell order submitted/accepted to/by broker - Nothing to do
-            return
-
-        # Check if an order has been completed
-        if order.status in [order.Completed]:
-            if order.isbuy():
-                self.buy_price = order.executed.price
-                self.log(
-                    'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                    (order.executed.price,
-                     order.executed.value,
-                     order.executed.comm))
-
-                # Set trailing stop and take profit for the buy order
-                self.sell(
-                    exectype=bt.Order.StopTrail,
-                    trailpercent=self.trailing_stop_percent,
-                    parent=order
-                )
-
-                self.sell(
-                    exectype=bt.Order.Limit,
-                    price=order.executed.price * (1 + self.take_profit_percent / 100),
-                    parent=order
-                )
-
-            elif order.issell():
-                self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
-                         (order.executed.price,
-                          order.executed.value,
-                          order.executed.comm))
-
-            self.bar_executed = len(self)
-
-        elif order.status in [order.Canceled, order.Margin, order.Rejected]:
-            self.log('Order Canceled/Margin/Rejected')
+        self.hma = bt.indicators.HullMovingAverage(self.data.close, period=self.params.hma_period)
+        self.psar = bt.indicators.ParabolicSAR(self.datas[0])
 
         self.order = None
+        self.entry_price = None
+        self.signal_count = 0
+        self.success_count = 0
 
     def next(self):
-        self.log('Close, %.2f' % self.dataclose[0])
-
-        # Check if we are in a position
-        if self.position:
-            # Check if the close price is below the lower Bollinger Band for selling
-            if self.dataclose[0] < self.bollinger.lines.bot:
-                self.log('SELL CREATE (Close below Bollinger Bands), %.2f' % self.dataclose[0])
-                self.order = self.close()
-
+        if self.order:  # Check if an order is pending, if so, do nothing
             return
 
-        # Check if close is greater than or equal to the lower Bollinger Band
-        if self.dataclose[0] >= self.bollinger.lines.bot:
-            # Check if the previous close is less than the lower Bollinger Band
-            if self.dataclose[-1] < self.bollinger.lines.bot[-1]:
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
-                self.order = self.buy(size=40)
+        if not self.position:  # Not in the market
+            if self.hma[0] < self.data.close[0] and self.psar[0] < self.data.close[0]:
+                self.order = self.buy()
+                self.entry_price = self.data.close[0]
+                self.signal_count += 1
+            elif self.hma[0] > self.data.close[0] and self.psar[0] > self.data.close[0]:
+                self.order = self.sell()
+                self.entry_price = self.data.close[0]
+                self.signal_count += 1
+        else:
+            # Check for target profit
+            if self.position.size > 0:  # In a long position
+                if self.data.close[0] >= self.entry_price[0] * (1 + self.params.percent_target / 100):
+                    self.order = self.sell()
+                    self.success_count += 1
+            elif self.position.size < 0:  # In a short position
+                if self.data.close[0] <= self.entry_price * (1 - self.params.percent_target / 100):
+                    self.order = self.close()
+                    self.success_count += 1
 
-        # Update the price history
-        self.price_history.append(self.dataclose[0])
+    def stop(self):
+        if self.signal_count > 0:
+            probability = (self.success_count / self.signal_count) * 100
+            print(f'Probability of achieving 5% price move: {probability:.2f}%')
 
-        # Remove the oldest price to keep the history size fixed
-        if len(self.price_history) > 21:
-            self.price_history.pop(0)
+# Add the strategy to Cerebro, load data and run the backtest
 
 
 if __name__ == '__main__':
@@ -103,28 +57,28 @@ if __name__ == '__main__':
     cerebro = bt.Cerebro()
 
     # Add a strategy
-    cerebro.addstrategy(TestStrategy)
+    cerebro.addstrategy(HMA_PSAR_Strategy)
 
-    datapath = 'data/LTC-USDT60.csv'
+    datapath = 'data/LINK-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=datapath,
-        fromdate=datetime.datetime(2022, 1, 13),
+        fromdate=datetime.datetime(2023, 10, 2),
         todate=datetime.datetime(2024, 1, 31),
-        open=1,
-        high=2,
-        low=3,
-        close=4,
-        volume=-1,
-        openinterest=-1,
+        open = 1,
+        high = 2,
+        low = 3,
+        close = 4,
+        volume = -1,
+        openinterest = -1,
         dtformat='%Y-%m-%dT%H:%M:%SZ',  # Specify the correct date format
         datetime=0,  # Index of the column containing datetime information
     )
 
     cerebro.adddata(data)
 
-    cerebro.addsizer(bt.sizers.FixedSize, stake=40)
+    cerebro.addsizer(bt.sizers.FixedSize, stake=1)
 
     cerebro.broker.setcash(100000)
 
@@ -136,6 +90,6 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
 
-    cerebro.plot(volume=False)
+    print('Ending Portfolio Value: %.2f' % cerebro.broker.getvalue())
 
-    # Print out the final result
+    cerebro.plot(volume = False)
