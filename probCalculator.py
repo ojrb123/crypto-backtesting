@@ -2,7 +2,7 @@ import pandas as pd
 import ta_py as ta;
 import csv
 
-df = './data/LTC-USDT15.csv'
+df = './data/SNX-USDT15.csv'
 
 class DataFeed:
 
@@ -97,6 +97,8 @@ with open(df, 'r') as csv_file:
     BUY = False
     BUY_PRICE = 0.00
     WIN = 0
+    TAKE_PROFIT = 3
+    STOP_LOSS = -20
     # prev_hma_state = True
     prev_psar_state = True
     initial_hma_val, last_close_for_hma = initial_hma(df, 9)
@@ -108,18 +110,17 @@ with open(df, 'r') as csv_file:
 
     for row in reader:
         HMA_holder.append(row[4])
-        print(HMA_holder)
+        # print(HMA_holder)
         WINDOW += 1
         CANDLES += 1
         if WINDOW == 11:
             HMA_val = HMA(HMA_holder, WINDOW-2)
             curr_hma_state = HMA_position(HMA_val, row[4])
             curr_psar_state = PSAR_position(PSAR_holder[CANDLES], row[4])
-            print(f"HMA: {HMA_val}")
-            print(f"Price: {row[4]}")
+ 
             WINDOW -= 1
             HMA_holder = HMA_holder[1:]
-            print(curr_hma_state, curr_hma_state)
+            # print(curr_hma_state, curr_hma_state)
             if curr_hma_state != prev_hma_state and curr_hma_state == True:
                 hma_cross = True
             if curr_psar_state == True and curr_hma_state == True and BUY is False:
@@ -131,22 +132,28 @@ with open(df, 'r') as csv_file:
                 # print(BUY_PRICE)
                 # print(percent_change)
 
-                if percent_change >= 3:
+                if percent_change >= TAKE_PROFIT:
                     WIN += 1
                     BUY = False
                     TRIALS += 1
                 
-                if percent_change <= -3:
+                if percent_change <= STOP_LOSS:
                     BUY = False
                     TRIALS += 1
                     
             prev_hma_state = curr_hma_state
 
-    print(f"Number of Trials: {TRIALS}")
+    EXPECTED = ((WIN / TRIALS) * TAKE_PROFIT) + ((1 - (WIN / TRIALS)) * STOP_LOSS)
+    TRADES_PER_DAY = TRIALS / ((CANDLES / 4) / 24)
     print(f"Number of Candles: {CANDLES}")
+    print(f"Number of Trials: {TRIALS}")
     print(f"Number of Wins {WIN}")
-    print(f"Winrate: {(WIN / TRIALS) * 100:.2f}%")
-    # print(f"PSAR Data:{PSAR_holder}")
+    print(f"Winrate: {(float(WIN) / float(TRIALS)) * 100:.2f}%")
+    print(f"Trades per day: {TRADES_PER_DAY:.2f}")
+    print(f"Wins per day: {WIN / ((CANDLES / 4) / 24):.2f}")
+    print(f"Expected Value: {EXPECTED:.2f}")
+    print(f"Daily Value: {EXPECTED * TRADES_PER_DAY:.2f}")
+
 
 
         
