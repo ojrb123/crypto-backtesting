@@ -2,13 +2,13 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 import datetime
+import os.path
+import sys
 
 import backtrader as bt
 
 # Create a Strategy
 class TestStrategy(bt.Strategy):
-
-    params = (('hma_period', 7), ('psar_af', 0.02), ('psar_afmax', 0.2), ('percent_target', 3))
 
     def log(self, txt, dt=None):
         ''' Logging function for this strategy'''
@@ -18,13 +18,18 @@ class TestStrategy(bt.Strategy):
     def __init__(self):
         # Keep a reference to the "close" line in the data[0] dataseries
         self.dataclose = self.datas[0].close
+        self.price_history = []
 
-        self.order = None
-        self.buyprice = None
-        self.comm = None
-        self.hma = bt.indicators.HullMovingAverage(self.data.close, period=self.params.hma_period)
-        self.psar = bt.indicators.ParabolicSAR(af=self.params.psar_af, afmax=self.params.psar_afmax)
-        self.bs = bt.indicators.
+        # Add Parabolic SAR indicator
+        self.sar = bt.indicators.ParabolicSAR(self.datas[0])
+        self.hma = bt.indicators.HullMovingAverage(self.datas[0])
+
+        # Initialize prev_sar and buy_price
+        self.prev_sar = None
+        self.prev_hma = None
+        self.buy_price = None
+        self.success = 0
+        self.trials = 1
 
     def notify_order(self, order):
         if order.status in [order.Submitted, order.Accepted]:
@@ -32,18 +37,16 @@ class TestStrategy(bt.Strategy):
             return
 
         # Check if an order has been completed
-        # Attention: broker could reject order if not enough cash
         if order.status in [order.Completed]:
             if order.isbuy():
+                self.buy_price = order.executed.price
                 self.log(
                     'BUY EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                     (order.executed.price,
                      order.executed.value,
                      order.executed.comm))
 
-                self.buyprice = order.executed.price
-                self.buycomm = order.executed.comm
-            else:  # Sell
+            elif order.issell():
                 self.log('SELL EXECUTED, Price: %.2f, Cost: %.2f, Comm %.2f' %
                          (order.executed.price,
                           order.executed.value,
@@ -56,36 +59,43 @@ class TestStrategy(bt.Strategy):
 
         self.order = None
 
-    def notify_trade(self, trade):
-        if not trade.isclosed:
-            return
-
-        self.log('OPERATION PROFIT, GROSS %.2f, NET %.2f' %
-                 (trade.pnl, trade.pnlcomm))
-
     def next(self):
         self.log('Close, %.2f' % self.dataclose[0])
 
         # Check if we are in a position
-        if self.order:
-            return
+        probability = (self.success / self.trials) * 100
+        print(f'Probability of achieving 5% price move: {probability:.2f}%')
         
+
         if self.position:
-            if (int(self.buyprice * 1.05)) <= (int(self.dataclose[0])):
-                self.log('SELL CREATE 10, %.2f, %.2f' % (self.dataclose[0], self.buyprice))
-                self.log('calc, %.2f' % int(self.buyprice * 1.05))
-                self.order = self.sell()
 
-            elif (int(self.buyprice * 0.98)) >= (int(self.dataclose[0])):
-                self.log('SL CREATE 2, %.2f, %.2f' % (self.dataclose[0], self.buyprice))
-                self.order = self.sell() 
+            percent_chng = (self.dataclose[0] - self.buy_price) / self.buy_price * 100
+           
+
+            if percent_chng >= 3:
+                self.log('SELL CREATE (Price dropped below 98%% of buy price), %.2f' % self.dataclose[0])
+                self.order = self.close()
+                self.success += 1
+                self.trials += 1
+
+            if percent_chng <= -3:
+                self.log('SELL CREATE (Price dropped below 98%% of buy price), %.2f' % self.dataclose[0])
+                self.order = self.close()
+                self.trials += 1
             
-        elif not self.position:
-            if self.dataclose[0] == 65 :
-                self.log('BUY CREATE, %.2f' % self.dataclose[0])
+            # elif self.dataclose[0] >= self.buy_price * 1.05:
+            #     self.log('SELL CREATE (Price increased aboe 15%% of buy price), %.2f' % self.dataclose[0])
+            #     self.order = self.close()
 
-                self.order = self.buy()
+            return
 
+        # Update the price history
+        if self.dataclose[0] > self.sar[0] and self.dataclose[0] > self.hma[0] and not self.position:
+            self.log('BUY CREATE, %.2f' % self.dataclose[0])
+            self.order = self.buy()
+            
+
+            
 
 
 if __name__ == '__main__':
@@ -95,12 +105,12 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    datapath = 'data/LINK-USDT15-SMALL.csv'
+    datapath = 'data/LINK-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
         dataname=datapath,
-        fromdate=datetime.datetime(2022, 1, 13),
+        fromdate=datetime.datetime(2023, 10, 2),
         todate=datetime.datetime(2024, 1, 31),
         open = 1,
         high = 2,
@@ -116,7 +126,7 @@ if __name__ == '__main__':
 
     cerebro.addsizer(bt.sizers.FixedSize, stake=1)
 
-    cerebro.broker.setcash(100)
+    cerebro.broker.setcash(100000)
 
     cerebro.broker.setcommission(commission=0.001)
 
@@ -126,8 +136,8 @@ if __name__ == '__main__':
     # Run over everything
     cerebro.run()
 
-    cerebro.plot(volume = False)
-
     print('Ending Portfolio Value: %.2f' % cerebro.broker.getvalue())
+
+    cerebro.plot(volume = False)
 
     # Print out the final result
