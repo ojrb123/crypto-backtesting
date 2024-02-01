@@ -1,7 +1,7 @@
 import backtrader as bt
 import datetime
 
-# Custom Data Feed Class for TradingView CSV Data
+# Custom Data Feed for Trading View CSVs
 class TradingViewCSVData(bt.feeds.GenericCSVData):
     params = (
         ('dtformat', '%Y-%m-%dT%H:%M:%SZ'),  # ISO datetime format including 'Z' for UTC
