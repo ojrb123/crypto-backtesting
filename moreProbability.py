@@ -105,7 +105,7 @@ if __name__ == '__main__':
     # Add a strategy
     cerebro.addstrategy(TestStrategy)
 
-    datapath = 'data/LINK-USDT15.csv'
+    datapath = 'data/SNX-USDT15.csv'
 
     # Create a Data Feed
     data = bt.feeds.GenericCSVData(
