@@ -49,11 +49,11 @@ def initial_hma(data, length):
     return initial_hma_val, initial_data[-1]  # Return last close price too
 
 
-# Returns a datasets supertrend value
+# Returns a datasets supertrend BUY value
 # data -- An array of arrays where the sub arrays contain the [[high, close, low]]
-def SuperTrend(data, length=3, multiplier=0.5):
+def SuperTrend_up(data, length=3, multiplier=0.5):
 
-    return ta.supertrend(data, length, multiplier)
+    return ta.supertrend(data, length, multiplier)[0][0]
 
 def print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE):
     print(f"Number of Candles: {CANDLES}")

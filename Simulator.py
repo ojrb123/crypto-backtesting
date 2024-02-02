@@ -1,10 +1,9 @@
-import pandas as pd 
 import ta_py as ta;
 import csv
 import time
-from SimulatorCalculations import PSAR, get_PSAR_Data, PSAR_position, HMA, HMA_position, initial_hma, SuperTrend, calc_stats, print_stats
+from collections import deque
+from SimulatorCalculations import PSAR, get_PSAR_Data, PSAR_position, HMA, HMA_position, initial_hma, SuperTrend_up, calc_stats, print_stats
 from SimulatorAvgStats import AverageStats, print_averages
-
 
 LINKdf = './data/LINK-USDT15.csv'
 SNXdf = './data/SNX-USDT15.csv'
@@ -16,70 +15,41 @@ AVAXdf = './data/AVAX-USDT15.csv'
 TAKE_PROFIT = 5
 STOP_LOSS = -5
 
-
 starting_time = time.time()
 average_stats = AverageStats()
 
 def run_simulation(df):
     with open(df, 'r') as csv_file:
         reader = csv.reader(csv_file)
-        next(reader)
+        next(reader)  # Skip header
 
-        # reset simulator state
-        HMA_holder = []
-        PSAR_data = []
+        # Initialize the sliding window for HMA calculation
+        HMA_window = deque(maxlen=11)  
+
+        # Init the PSAR array
         PSAR_data = get_PSAR_Data(df)
-        PSAR_holder = []
         PSAR_holder = PSAR(PSAR_data)
-        WINDOW = 0 
+        
+        # Reset simulator state
         TRIALS = 0
         CANDLES = 0
         BUY = False
-        BUY_PRICE = 0.00
         WIN = 0
-        
-        
-        prev_psar_state = True
-
-        # find the initial hma value
-        initial_hma_val, last_close_for_hma = initial_hma(df, 11)
-
-        # set the first hma state boolean
-        prev_hma_state = last_close_for_hma > initial_hma_val[0] 
-
-        # skip the rows that were used in the initial hma
-        for _ in range(8): 
-            next(reader)
 
         for row in reader:
-
-            # add the close to the current hma window
-            HMA_holder.append(row[4])
-
-            WINDOW += 1
+            current_close = float(row[4])
+            HMA_window.append(current_close)
             CANDLES += 1
 
-            # we need 11 values in the hma holder array to calculate an hma value
-            if WINDOW == 11:
+            if len(HMA_window) == HMA_window.maxlen:
+                # Now we have enough data to calculate HMA
+                HMA_val = HMA(list(HMA_window), len(HMA_window) - 2)  
+                curr_hma_state = HMA_position(HMA_val, current_close)
+                curr_psar_state = PSAR_position(PSAR_holder[CANDLES-1], current_close)
 
-                # calculate current hma value
-                HMA_val = HMA(HMA_holder, WINDOW-2)
-
-                # check if close is above or below hma
-                curr_hma_state = HMA_position(HMA_val, row[4])
-
-                # check is close is above or below psar
-                curr_psar_state = PSAR_position(PSAR_holder[CANDLES-1], row[4])
-    
-                WINDOW -= 1
-
-                # remove the oldest value from the hma array
-                HMA_holder = HMA_holder[1:]
-
-                # if price is above psar and hma and we are not in a buy, buy
-                if curr_psar_state == True and curr_hma_state == True and BUY is False:
+                if curr_psar_state and curr_hma_state and not BUY:
                     BUY = True
-                    BUY_PRICE = float(row[4])
+                    BUY_PRICE = current_close
 
                 if BUY:
                     percent_change = (float(row[4]) - BUY_PRICE) / BUY_PRICE * 100
@@ -113,7 +83,6 @@ run_simulation(DOTdf)
 
 print("---------------AVAX---------------")
 run_simulation(AVAXdf)
-
 
 averages = average_stats.calculate_averages()
 print_averages(averages)
