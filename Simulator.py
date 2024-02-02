@@ -14,11 +14,9 @@ DOTdf = './data/DOT-USDT15.csv'
 AVAXdf = './data/AVAX-USDT15.csv'
 
 # custom vars
-TAKE_PROFIT = 40
+TAKE_PROFIT = 10
 STOP_LOSS = -5
 BALANCE = 100
-ST_WINDOW = 10
-ST_MULTI = 0.5
 
 starting_time = time.time()
 average_stats = AverageStats()
@@ -84,7 +82,7 @@ def run_simulation(df):
         TO_BEAT = (current_close - first_close) / first_close * 100
         EXPECTED, TRADES_PER_DAY, WINRATE, WINS_PER_DAY, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE = calc_stats(WIN, TRIALS, TAKE_PROFIT, STOP_LOSS, CANDLES, TO_BEAT, BALANCE)
         print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE)
-        average_stats.update_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE)
+        average_stats.update_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE)
 
 print("---------------LINK---------------")
 run_simulation(LINKdf1)

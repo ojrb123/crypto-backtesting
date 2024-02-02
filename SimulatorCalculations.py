@@ -61,17 +61,17 @@ def SuperTrendUp_position(supertrendup_value, close):
     return float(close) > supertrendup_value
 
 def print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE):
-    print(f"Number of Candles: {CANDLES}")
-    print(f"Number of Trials: {TRIALS}")
-    print(f"Number of Wins {WIN}")
+    # print(f"Number of Candles: {CANDLES}")
+    # print(f"Number of Trials: {TRIALS}")
+    # print(f"Number of Wins {WIN}")
     print(f"Winrate: {WINRATE:.2f}%")
     print(f"Trades per day: {TRADES_PER_DAY:.2f}")
     print(f"Wins per day: {WINS_PER_DAY:.2f}")
     print(f"Expected Value: {EXPECTED:.2f}")
     print(f"Daily Value: {DAILY_VALUE:.2f}")
-    print(f"Percent to beat ${TO_BEAT_BALANCE:.2f}")
+    print(f"Balance to beat ${TO_BEAT_BALANCE:.2f}")
     print(f"Ending Balance: ${END_BALANCE:.2f}")
-    # print(f"Run time: {time.time() - start_time:.2f}s")
+    
 
 def calc_stats(WIN, TRIALS, TAKE_PROFIT, STOP_LOSS, CANDLES, TO_BEAT, BALANCE):
     EXPECTED = ((WIN / TRIALS) * TAKE_PROFIT) + ((1 - (WIN / TRIALS)) * STOP_LOSS)
