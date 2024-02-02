@@ -51,11 +51,16 @@ def initial_hma(data, length):
 
 # Returns a datasets supertrend BUY value
 # data -- An array of arrays where the sub arrays contain the [[high, close, low]]
-def SuperTrend_up(data, length=3, multiplier=0.5):
+def SuperTrend_Up(data, length, multiplier):
 
     return ta.supertrend(data, length, multiplier)[0][0]
 
-def print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE):
+# returns true if close is greater than supertrend up value
+# used for checking for a cross
+def SuperTrendUp_position(supertrendup_value, close):
+    return float(close) > supertrendup_value
+
+def print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE):
     print(f"Number of Candles: {CANDLES}")
     print(f"Number of Trials: {TRIALS}")
     print(f"Number of Wins {WIN}")
@@ -64,13 +69,18 @@ def print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXP
     print(f"Wins per day: {WINS_PER_DAY:.2f}")
     print(f"Expected Value: {EXPECTED:.2f}")
     print(f"Daily Value: {DAILY_VALUE:.2f}")
+    print(f"Percent to beat ${TO_BEAT_BALANCE:.2f}")
+    print(f"Ending Balance: ${END_BALANCE:.2f}")
     # print(f"Run time: {time.time() - start_time:.2f}s")
 
-def calc_stats(WIN, TRIALS, TAKE_PROFIT, STOP_LOSS, CANDLES):
+def calc_stats(WIN, TRIALS, TAKE_PROFIT, STOP_LOSS, CANDLES, TO_BEAT, BALANCE):
     EXPECTED = ((WIN / TRIALS) * TAKE_PROFIT) + ((1 - (WIN / TRIALS)) * STOP_LOSS)
     TRADES_PER_DAY = TRIALS / ((CANDLES / 4) / 24)
     WINRATE = (float(WIN) / float(TRIALS)) * 100
     WINS_PER_DAY = WIN / ((CANDLES / 4) / 24)
     DAILY_VALUE = EXPECTED * TRADES_PER_DAY
-    return EXPECTED, TRADES_PER_DAY, WINRATE, WINS_PER_DAY, DAILY_VALUE
+    DAYS = CANDLES / (4 * 24)
+    TO_BEAT_BALANCE =  BALANCE * (1 + (TO_BEAT / 100))
+    END_BALANCE = BALANCE * ((1 + DAILY_VALUE / 100) ** DAYS)
+    return EXPECTED, TRADES_PER_DAY, WINRATE, WINS_PER_DAY, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE
 
