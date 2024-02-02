@@ -1,18 +1,21 @@
-import ta_py as ta;
+
 import csv
 import time
 from collections import deque
 from SimulatorCalculations import PSAR, get_PSAR_Data, PSAR_position, HMA, HMA_position, calc_stats, print_stats
 from SimulatorAvgStats import AverageStats, print_averages
 
-LINKdf1 = './data/LINKUSDT15-SUPER-1.csv'
-LINKdf2 = './data/LINKUSDT15-SUPER-2.csv'
-SNXdf1 = './data/SNXUSDT15-SUPER-1.csv'
-SNXdf2 = './data/SNXUSDT15-SUPER-2.csv'
-LTCdf1 = './data/LTCUSDT15-SUPER-1.csv'
-DOTdf1 = './data/DOTUSDT15-SUPER-1.csv'
-DOTdf2 = './data/DOTUSDT15-SUPER-2.csv'
-AVAXdf1 = './data/AVAXUSDT15-SUPER-1.csv'
+datafeeds = ['./data/LINKUSDT15-SUPER-1.csv', './data/LINKUSDT15-SUPER-2.csv',
+            './data/SNXUSDT15-SUPER-1.csv','./data/SNXUSDT15-SUPER-2.csv',
+            './data/LTCUSDT15-SUPER-1.csv', './data/DOTUSDT15-SUPER-1.csv',
+            './data/DOTUSDT15-SUPER-2.csv', './data/AVAXUSDT15-SUPER-1.csv',
+            './data/ENJUSDT15-SUPER-1.csv', './data/ETHUSDT15-SUPER-1.csv',
+            './data/ALGOUSDT15-SUPER-1.csv', './data/BNBUSDT15-SUPER-1.csv',
+            './data/DOGEUSDT15-SUPER-1.csv', './data/ONEUSDT15-SUPER-1.csv',
+            './data/ADAUSDT15-SUPER-1.csv', './data/EGLDUSDT15-SUPER-1.csv',
+            './data/MATICUSDT15-SUPER-1.csv', './data/PYTHUSDT15-SUPER-1.csv',
+            './data/TIAUSDT15-SUPER-1.csv', './data/SOLUSDT15-SUPER-1.csv',
+            './data/XRPUSDT15-SUPER-1.csv']
 
 # custom vars
 
@@ -20,7 +23,7 @@ AVAXdf1 = './data/AVAXUSDT15-SUPER-1.csv'
 starting_time = time.time()
 average_stats = AverageStats()
 
-def run_simulation(df, tp, sl, bal):
+def run_simulation(df, tp, sl, bal=1000):
     with open(df, 'r') as csv_file:
         reader = csv.reader(csv_file)
         next(reader)  # Skip header
@@ -60,13 +63,14 @@ def run_simulation(df, tp, sl, bal):
                 # if uptrend set super state to True
                 curr_super_state = True if row[5] != "NaN" else False
 
-                if curr_psar_state and curr_hma_state and curr_super_state and not BUY:
+                if curr_psar_state and curr_hma_state and not BUY:
                     BUY = True
                     BUY_PRICE = current_close
 
                 if BUY:
                     percent_change = (float(row[4]) - BUY_PRICE) / BUY_PRICE * 100
 
+              
                     if percent_change >= tp:
                         WIN += 1
                         BUY = False
@@ -75,42 +79,27 @@ def run_simulation(df, tp, sl, bal):
                     if percent_change <= sl:
                         BUY = False
                         TRIALS += 1
-                        
-                prev_hma_state = curr_hma_state
 
         TO_BEAT = (current_close - first_close) / first_close * 100
         EXPECTED, TRADES_PER_DAY, WINRATE, WINS_PER_DAY, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE = calc_stats(WIN, TRIALS, tp, sl, CANDLES, TO_BEAT, bal)
         print_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE)
         average_stats.update_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE)
+        
+        return CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE
 
-print("---------------LINK---------------")
-run_simulation(LINKdf1, 5, -2, 1000)
+if __name__ == '__main__':
+    
+    
+    for df in datafeeds:
+        coin_name = df.split('/')[-1].split('USDT')[0]
+        print(f"-----------{coin_name}-----------")
+        run_simulation(df, 5, -1)
 
-print("---------------LINK---------------")
-run_simulation(LINKdf2, 5, -2, 1000)
+    averages = average_stats.calculate_averages()
+    print_averages(averages)
+    print(average_stats.get_average_sim_winrate())
 
-print("---------------SNX---------------")
-run_simulation(SNXdf1, 5, -2, 1000)
-
-print("---------------SNX---------------")
-run_simulation(SNXdf2, 5, -2, 1000)
-
-print("---------------LTC---------------")
-run_simulation(LTCdf1, 5, -2, 1000)
-
-print("---------------DOT---------------")
-run_simulation(DOTdf1, 5, -2, 1000)
-
-print("---------------DOT---------------")
-run_simulation(DOTdf2, 5, -2, 1000)
-
-print("---------------AVAX---------------")
-run_simulation(AVAXdf1, 5, -2, 1000)
-
-averages = average_stats.calculate_averages()
-print_averages(averages)
-
-print("---------------OTHER---------------")
-print(f"Run time: {time.time() - starting_time:.2f}s")
+    print("---------------OTHER---------------")
+    print(f"Run time: {time.time() - starting_time:.2f}s")
 
         

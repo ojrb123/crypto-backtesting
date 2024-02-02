@@ -41,6 +41,9 @@ class AverageStats:
             }
         else:
             return {}
+        
+    def get_average_sim_winrate(self):
+        return (self.STRAT_WON / self.SIMULATIONS) * 100
 
 def print_averages(averages):
     print("---------------AVERAGE STATS---------------")
