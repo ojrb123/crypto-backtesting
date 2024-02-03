@@ -1,5 +1,6 @@
 from Simulator import run_simulation
 from SimulatorAvgStats import AverageStats, print_averages
+from SimulatorProbablities import get_probabilties
 import time
 
 starting_time = time.time()
@@ -21,14 +22,15 @@ def Mega_Simulation(datafeeds, balance=1000):
     # Dictionary to store average win rates for each TP and SL combination
     combination_win_rates = {}
     print("Running...")
-    for tp in range(1, 8):  # Adjusted range to include 7
-        for sl in range(-1, -8, -1):  # Adjusted range to include -7
+    for tp in range(1, 12):  # Adjusted range to include 7
+        for sl in range(-1, -10, -1):  # Adjusted range to include -7
             # Reset or Initialize AverageStats for each TP, SL combination
             average_stats = AverageStats()
             
             # Run simulation for each datafeed
             for df in datafeeds:
-                CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE = run_simulation(df, tp, sl, balance)
+                prob = get_probabilties(df, tp, sl)
+                CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE = run_simulation(df, tp, sl, prob, balance)
                 average_stats.update_stats(CANDLES, TRIALS, WIN, WINRATE, TRADES_PER_DAY, WINS_PER_DAY, EXPECTED, DAILY_VALUE, TO_BEAT_BALANCE, END_BALANCE)
                 
             # Calculate the average win rate for this TP, SL combination
@@ -42,11 +44,11 @@ def Mega_Simulation(datafeeds, balance=1000):
     # Print out the results at the end
     print("TP, SL Combinations and Their Average Simulation Win Rates:")
     for combination, win_rate in combination_win_rates.items():
-        print(f"TP: {combination[0]}, SL: {combination[1]}, Win Rate: {win_rate}%")
+        print(f"TP: {combination[0]}, SL: {combination[1]}, Win Rate: {win_rate:.2f}%")
 
     # Optionally, find and print the best combination
     best_combination = max(combination_win_rates, key=combination_win_rates.get)
-    print(f"Best Combination: TP: {best_combination[0]}, SL: {best_combination[1]}, Win Rate: {combination_win_rates[best_combination]}%")
+    print(f"Best Combination: TP: {best_combination[0]}, SL: {best_combination[1]}, Win Rate: {combination_win_rates[best_combination]:.2f}%")
 
     print(f"Total Run Time: {time.time() - starting_time:.2f}s")
 
